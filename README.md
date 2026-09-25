@@ -1,181 +1,247 @@
-# @lyw/dsh-web-search-bocha
+# dsh-web-search-bocha
 
 English | [中文](README.zh.md)
 
-> **Adapted fork.** This is a community adaptation of
-> [`@bocha-ai/dsh-web-search-bocha`](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha)
-> 0.1.0 for **dsh 0.1.7-rc.2**. The upstream package targets `@deepseek-ai/dsh-settings`
-> `^0.1.0-rc.5` and imports `installSettingsSection` / `settingsNamespace`, which that
-> package **removed in 0.1.2-rc.1**. Because ESM named imports resolve at link time, the
-> upstream package fails to load at all on 0.1.7-rc.2.
->
-> See [Adaptation](#adaptation) for the exact delta.
+A [Bocha Web Search](https://open.bocha.cn/) backend for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — gives the `web_search` tool a working, China-friendly search provider so your agent can actually search the web on **dsh 0.1.7-rc.2**.
 
-A [Bocha Web Search](https://open.bocha.cn/)-backed `WebSearchProvider` and installable Profile bundle for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). The package registers provider id `bocha`, calls Bocha's `POST /v1/web-search` endpoint, and carries a `dsh.bundle` patch that selects the provider after installation.
+> **This is a compatibility fork of the official Bocha plugin.**
+> Built on [`@bocha-ai/dsh-web-search-bocha`](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha) 0.1.0, published by Bocha ([open.bocha.cn](https://open.bocha.cn/)). The upstream package cannot load on current dsh, so this fork removes exactly the one incompatible dependency and leaves everything else untouched. See [Why this fork exists](#why-this-fork-exists).
 
-The package supplies search only. DeepSeek Harness continues to own the model-facing `web_search` tool, result limits, citations, provider selection, and error presentation through its [web capability](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/web/web).
+## Why you might need this
+
+Out of the box, dsh routes `web_search` to DeepSeek's own search backend, which needs a `DEEPSEEK_API_KEY`. Without one — the common case when you use dsh with a third-party model provider — every search fails:
+
+```
+Error: DeepSeek search has no API key for "DEEPSEEK_API_KEY"
+```
+
+This plugin replaces that backend with Bocha. You get domestic, compliant search results with titles, URLs and publication dates, and you use a Bocha key instead of a DeepSeek one.
+
+## Features
+
+- Registers provider id `bocha` on dsh's `ctx.web` seam, so the existing `web_search` tool routes to it with no tool changes.
+- Maps Bocha's `webPages[].name` / `summary` / `datePublished` onto the portable Harness source type.
+- Resolves the API key per search through the credentials service — rotate the key and the next request picks it up, no restart.
+- Keeps dsh in charge of result limits, citation rendering, provider selection and error presentation.
+- No build step: the package ships plain ESM.
+- Honours `maxResults` and caps it at Bocha's documented maximum of 50.
+
+## Requirements
+
+| Requirement | Version |
+|---|---|
+| DeepSeek Harness | **0.1.7-rc.2** (verified) |
+| Node.js | `^22.19.0` or `>=24.0.0` |
+| Bocha API key | from [open.bocha.cn](https://open.bocha.cn/) |
 
 ## Install
 
-Install the bundle into a Profile:
+### 1. Get the plugin
 
 ```sh
-dsh plugin --profile desktop add /path/to/lyw-dsh-web-search-bocha
+git clone https://github.com/Ellery1999/lyw-dsh-web-search-bocha.git
 ```
 
-> **Important — do not install this outside the Profile.** A `link:`/junction install
-> resolves to its real path, which falls outside the Profile directory. The dsh loader
-> only routes peer modules (`@deepseek-ai/*`) for import paths *inside* the Profile tree,
-> so a linked install fails with `failed to import`. Install a **real copy** inside
-> `node_modules` (a `file:` dependency vendored under the Profile is the reliable way).
+### 2. Install it into your Profile
 
-Optionally inspect the composed configuration; this prints it and exits:
+Choose the method that matches how you run dsh.
+
+<details open>
+<summary><b>Option A — dsh CLI (recommended)</b></summary>
 
 ```sh
-dsh --profile desktop --dump-config
+dsh plugin --profile <your-profile> add /absolute/path/to/lyw-dsh-web-search-bocha
 ```
 
-Start the Web app with:
+Use your actual Profile name (`desktop`, `web`, `tui`, …). The plugin declares `dsh.bundle`, so the CLI also adds it to your Profile's bundle list.
+
+</details>
+
+<details>
+<summary><b>Option B — pnpm directly, vendored inside the Profile</b></summary>
+
+This is the layout used by the author's own desktop Profile, and it survives `pnpm install` intact:
 
 ```sh
-dsh --profile desktop
+mkdir -p ~/.dsh/profiles/<your-profile>/vendor
+cp -r /absolute/path/to/lyw-dsh-web-search-bocha ~/.dsh/profiles/<your-profile>/vendor/
 ```
 
-Configure the API key with either option below. You do not need both.
+Then add to `~/.dsh/profiles/<your-profile>/package.json`:
 
-### Option 1: DSH credentials document
+```json
+{
+  "dependencies": {
+    "@lyw/dsh-web-search-bocha": "file:vendor/dsh-web-search-bocha"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app",
+        "@lyw/dsh-web-search-bocha"
+      ]
+    }
+  }
+}
+```
 
-Store the key in `$DSH_HOME/.credentials.yaml` (normally `~/.dsh/.credentials.yaml`):
+then run `pnpm install` in the Profile directory.
+
+</details>
+
+### 3. Point search at Bocha and add the row
+
+Append to `~/.dsh/profiles/<your-profile>/cordis.patch.yml`:
+
+```yaml
+- id: web
+  name: "@deepseek-ai/dsh-web"
+  config:
+    searchProvider: bocha
+
+- id: web-search-bocha
+  name: "@lyw/dsh-web-search-bocha"
+  config:
+    apiKeyEnv: BOCHA_API_KEY
+    freshness: noLimit
+    summary: true
+    count: 10
+```
+
+> The plugin's own bundle patch already sets `searchProvider: bocha` and inserts the row. Repeating them here just pins the choice in your top user layer so it survives bundle changes.
+
+### 4. Store your Bocha key
+
+Add it to `~/.dsh/.credentials.yaml`:
 
 ```yaml
 BOCHA_API_KEY: your-api-key
 ```
 
-On POSIX, the file must be owner-only:
+On POSIX, restrict the file to its owner:
 
 ```sh
 chmod 600 ~/.dsh/.credentials.yaml
 ```
 
-The plugin resolves this reference through the Harness credentials service for every search, so a stored key rotation applies to the next request without a restart.
+<details>
+<summary>Alternative: environment variable</summary>
 
-### Option 2: Environment variable
-
-For CI, containers, or a per-run override, export the key before starting Harness:
+Useful for CI, containers, or a one-off override. Export before launching dsh:
 
 ```sh
 export BOCHA_API_KEY='your-api-key'
 ```
 
-If both options configure `BOCHA_API_KEY`, the inherited environment variable takes precedence over the managed credentials document.
+If both are set, the inherited environment variable wins over the credentials document.
 
-Removing the package removes its provider row and bundle layer:
+</details>
 
-```sh
-dsh plugin --profile desktop remove @lyw/dsh-web-search-bocha
+### 5. Restart dsh
+
+Search now routes through Bocha. Verify by asking your agent to search for anything.
+
+## ⚠️ Installation pitfalls
+
+Two traps cost real debugging time. Both produce the same symptom: the plugin silently does not activate.
+
+### Trap 1 — never install it as a link or junction
+
+A `link:` / junction / symlink install resolves to its **real path, outside the Profile directory**. The dsh loader only routes peer modules (`@deepseek-ai/*`) for import paths *inside* the Profile tree, so a linked install fails with:
+
+```
+dsh: warning: 1 entry did not activate
+web-search-bocha (@lyw/dsh-web-search-bocha): failed to import
 ```
 
-## Bundle behavior
+This is why Option A above vendor-copies instead of linking, and why you should **not** use the Web UI's "local plugin directory" field for this plugin. Use Option A, Option B, or pass a packed `.tgz` instead — tarballs unpack into real files.
 
-`cordis.patch.yml` replaces the base `web` row's complete config with `searchProvider: bocha` and inserts a `web-search-bocha` row that loads this package. Existing providers remain mounted, but `ctx.web` routes search to `bocha`. Profile, Harness-home, and command-line patch layers applied later can replace either row.
+Confirm the install is a real directory (`LinkType` must be empty):
 
-## Config
+```powershell
+Get-Item "$env:USERPROFILE\.dsh\profiles\<profile>\node_modules\@lyw\dsh-web-search-bocha" -Force |
+  Select-Object LinkType
+```
+
+### Trap 2 — the Web UI has no config page for this plugin
+
+The official Bocha plugin registered a settings page through `dsh-settings`. That API no longer exists on dsh 0.1.7-rc.2, and configuration pages are now produced by client-side slot registration. This fork ships no client half, so there is **no in-GUI configuration page**, and the plugin appears in **Settings → Plugins** with only an enable toggle.
+
+Configure it through the Profile patch ([step 3](#3-point-search-at-bocha-and-add-the-row)) and restart. That is the same surface the official plugin's own docs recommended for third-party search settings.
+
+## Configuration
+
+Set these in the `web-search-bocha` row of your `cordis.patch.yml`.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `apiKey` | — | Optional literal Bocha API key. It is redacted from settings descriptions, but the credentials service is preferred so no plaintext key enters a Profile patch. |
-| `apiKeyEnv` | `BOCHA_API_KEY` | Credential reference resolved through the Harness credentials service for every search. |
+| `apiKey` | — | Literal Bocha key. Redacted from settings descriptions, but prefer `apiKeyEnv` so no plaintext key lands in a Profile patch. |
+| `apiKeyEnv` | `BOCHA_API_KEY` | Credential reference resolved through the credentials service on every search. |
 | `baseURL` | `https://api.bocha.cn` | API base; `/v1/web-search` is appended. |
-| `freshness` | `noLimit` | Time filter sent on every search: `noLimit`, `oneDay`, `oneWeek`, `oneMonth`, `oneYear`, one date such as `2025-04-06`, or a range such as `2025-01-01..2025-04-06`. |
-| `summary` | `true` | Requests Bocha's longer per-page `summary`. |
-| `count` | `10` | Default count when the Harness request has no `maxResults`; integer from 1 through 50. |
+| `freshness` | `noLimit` | Time filter sent on every search: `noLimit`, `oneDay`, `oneWeek`, `oneMonth`, `oneYear`, a single date like `2025-04-06`, or a range like `2025-01-01..2025-04-06`. |
+| `summary` | `true` | Ask Bocha for its longer per-page summary (used as the snippet). |
+| `count` | `10` | Default result count when a request carries no `maxResults`; integer 1–50. |
 
-A later Profile patch can configure the inserted row without changing the package:
+A request's `maxResults` overrides `count`, and either value is capped at Bocha's maximum of 50 before the request is sent.
 
-```yaml
-- id: web-search-bocha
-  config:
-    freshness: 2025-01-01..2025-04-06
-    summary: true
-    count: 10
+## Verify the install
+
+Ask your agent to run a search, or check the composed Profile:
+
+```sh
+dsh --profile <your-profile> --dump-config
 ```
 
-## Mapping and failures
+Look for `searchProvider: bocha` under the `web` row and a `web-search-bocha` row.
 
-The provider reads `data.webPages.value[]`. It maps `url` to `WebSearchSource.url`, `name` to `title`, `summary` to `snippet` with `snippet` as the fallback, and `datePublished` to `publishedAt`; an entry without a non-blank URL is dropped. Bocha does not return one generated answer for this endpoint, so `WebSearchResult.content` is omitted.
+## Uninstall
 
-The request's `maxResults` overrides `count` and is capped at Bocha's maximum of 50 before the request is sent. The Harness web capability still enforces its own final source bound.
+```sh
+dsh plugin --profile <your-profile> remove @lyw/dsh-web-search-bocha
+```
 
-HTTP errors, provider-declared non-200 codes, network failures, and unprocessable response bodies surface as `WebError` `WEB_PROVIDER_ERROR`. Error messages retain Bocha's `log_id` when present. Abort-shaped failures surface as `WEB_ABORTED`, and redirects are rejected before their target is contacted.
+Then remove the two rows you added to `cordis.patch.yml`. Your `web_search` tool falls back to the previous provider selection.
 
-The provider resolves the referenced credential at each search entry, so a key stored or rotated through the UI takes effect on the next request without restarting or re-registering the provider. A missing referenced credential surfaces as `WEB_PROVIDER_CREDENTIAL_MISSING`.
+## How it works
 
-## Adaptation
+The provider calls Bocha's `POST /v1/web-search` and maps the response onto dsh's portable source type: `url` → `source.url`, `name` → `title`, `summary` (falling back to `snippet`) → `snippet`, `datePublished` → `publishedAt`. Entries without a non-blank URL are dropped. Bocha returns no single generated answer for this endpoint, so `WebSearchResult.content` is left unset.
 
-### Why the upstream package cannot load on dsh 0.1.7-rc.2
+Failures surface as `WebError` with a machine-routable code: a missing credential is `WEB_PROVIDER_CREDENTIAL_MISSING`, cancellation is `WEB_ABORTED`, and HTTP errors, provider-declared non-200 codes, network failures and unparseable bodies are `WEB_PROVIDER_ERROR` (Bocha's `log_id` is preserved when present). Redirects are rejected before their target is contacted.
 
-Upstream `@bocha-ai/dsh-web-search-bocha@0.1.0` declares `@deepseek-ai/dsh-settings: ^0.1.0-rc.5`
-and imports two named exports from it:
+## Why this fork exists
+
+Upstream `@bocha-ai/dsh-web-search-bocha@0.1.0` declares `@deepseek-ai/dsh-settings: ^0.1.0-rc.5` and imports two named exports from it:
 
 ```js
 import { installSettingsSection, settingsNamespace } from "@deepseek-ai/dsh-settings";
 ```
 
-`dsh-settings` **removed both in 0.1.2-rc.1**, replacing them with the `SettingsForms`
-service (`ctx.settings`). Verified against published builds:
+`dsh-settings` **removed both in 0.1.2-rc.1**, replacing them with the `SettingsForms` service (`ctx.settings`). Verified against published builds:
 
 | `dsh-settings` | `installSettingsSection` / `settingsNamespace` |
 |---|---|
 | 0.1.0-rc.2 … 0.1.1-rc.2 | present |
 | **0.1.2-rc.1 and later (incl. 0.1.5.x, 0.1.7-rc.2)** | **removed** |
 
-ESM resolves named imports during module linking, so a missing export is a hard
-`SyntaxError` at load — not a caught runtime error. The plugin row fails with
-`failed to import` and never registers its provider. The declared peer range
-`^0.1.0-rc.5` does not prevent this, because it permits `<0.2.0`.
+ESM resolves named imports during module linking, so a missing export is a hard `SyntaxError` at load — not something a try/catch can absorb. The plugin row fails with `failed to import` and never registers its provider. The declared peer range `^0.1.0-rc.5` does not prevent this, because it permits anything below `0.2.0`.
 
-### The delta in this fork
+### The delta
 
 Three changes, all confined to `lib/index.js`:
 
 1. Removed the `@deepseek-ai/dsh-settings` import entirely.
-2. Removed the `installSettingsSection(...)` call from `apply()`. `apply()` now passes
-   `config` straight through instead of through the settings-driven `current()` indirection.
-3. `WEB_SEARCH_BOCHA_SETTINGS_NAMESPACE` is now a plain string literal rather than a
-   `settingsNamespace("web-search-bocha")` call.
+2. Removed the `installSettingsSection(...)` call from `apply()`. Config now flows straight to the provider instead of through the settings-driven `current()` indirection.
+3. `WEB_SEARCH_BOCHA_SETTINGS_NAMESPACE` became a plain string literal instead of a `settingsNamespace(...)` call.
 
-The provider implementation (`BochaSearchProvider`), the `Config` schema, result mapping,
-and error handling are **unchanged**.
-
-### Consequence: no in-GUI configuration page
-
-Upstream registered a settings page through the removed API. On dsh 0.1.7-rc.2 the
-configuration page is produced by registering a **client-side slot**, not by declaring
-host-side settings. The relevant slots (documented in `dsh-cordis-client-runner`) are:
-
-| Slot | Purpose |
-|---|---|
-| `plugins.item` | a plugin's own page — occupied by the four official pages |
-| `plugins.bundle.config` | a whole bundle's configuration |
-| `plugins.row.config` | one row's configuration, keyed `<package name>#<row id>` |
-
-This fork registers **no** client slot, so there is no configuration page. The
-`autoGenerate` field the host returns from `describe()` is not consumed by any shipped
-client package, so it does not produce a page either.
-
-**Configure through the Profile patch instead** (`cordis.patch.yml`), then restart. The
-API key lives in the credentials document and can be rotated there at any time.
+`BochaSearchProvider`, the `Config` schema, result mapping and error handling are **byte-for-byte upstream**. The only behavioural difference is the absence of a GUI settings page.
 
 ## Development
 
-This fork ships prebuilt `lib/index.js` (plain ESM, no build step). Verify a change by
-loading the module and exercising `apply()` against a stub context — there is no test
-runner configured in this fork.
-
-Run the live smoke only when a Bocha key is available:
+The package ships prebuilt plain ESM — there is no compile step. After editing `lib/index.js`, reload the module and exercise `apply()` against a stub context:
 
 ```sh
-BOCHA_API_KEY='your-api-key' node --input-type=module -e "
+node --input-type=module -e "
 import { BochaSearchProvider } from './lib/index.js'
 const p = new BochaSearchProvider(() => ({
   apiKey: process.env.BOCHA_API_KEY,
@@ -185,23 +251,18 @@ console.log(await p.search({ query: 'DeepSeek Harness', maxResults: 3 }))
 "
 ```
 
-## Model Experience
+If you installed via Option A or B with a copied directory, re-copy after editing so the Profile sees the change, then restart dsh.
 
-Indirectly, through DeepSeek Harness `dsh-tool-web`, which renders this provider's bounded URLs, titles, summaries or snippets, and publication dates under the stable `web_search` tool contract.
+## Compatibility notes
 
-#### KV Cache effect
+- Tested against **dsh 0.1.7-rc.2** only.
+- dsh is in Developer Preview and has already broken this plugin's API surface once. If a future release renames the web seam or the source type, this fork will need the same treatment again.
+- The upstream package may publish a fixed version; check [npm](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha) before assuming this fork is still needed.
 
-No direct invalidation; the Harness tool consumer owns any request-prefix changes.
+## Credits and license
 
-## Known Limitations and Deferred Work
+MIT. Original plugin © 2026 **Bocha** — [`@bocha-ai/dsh-web-search-bocha`](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha), [open.bocha.cn](https://open.bocha.cn/). The upstream `LICENSE` is retained verbatim.
 
-- **No configuration page** — see [Adaptation](#adaptation). Configure through the Profile row and store `BOCHA_API_KEY` in the credentials document or launch environment. Adding a page requires a client half (`lib/client.js` plus a `dsh.client` declaration) that registers `plugins.row.config`.
-- **Freshness is deployment configuration rather than a model-facing argument** — every request from one mounted provider uses the same `freshness` value because the provider-neutral Harness request currently carries only `query` and `maxResults`.
-- **Bocha-specific `siteName` and other media fields are omitted** — the portable Harness source type has no site-name, image, or video fields.
-- **One API call returns at most 50 sources** — a larger Harness `maxResults` request is capped at Bocha's documented maximum before transport.
-- **Must be installed as a real directory inside the Profile** — a `link:` install resolves outside the Profile tree and the loader's peer routing does not apply.
+Compatibility adaptation for dsh 0.1.7-rc.2 © 2026 [Ellery1999](https://github.com/Ellery1999).
 
-## License
-
-MIT, inherited from upstream. Original work copyright (c) 2026 Bocha; see [LICENSE](LICENSE).
-Adaptation changes copyright (c) 2026 the fork author.
+This fork is not affiliated with or endorsed by Bocha or DeepSeek.

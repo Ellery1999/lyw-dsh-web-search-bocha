@@ -28,6 +28,14 @@
     "web-search"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ellery1999/lyw-dsh-web-search-bocha.git"
+  },
+  "homepage": "https://github.com/Ellery1999/lyw-dsh-web-search-bocha#readme",
+  "bugs": {
+    "url": "https://github.com/Ellery1999/lyw-dsh-web-search-bocha/issues"
+  },
   "contributors": [
     "Bocha (original @bocha-ai/dsh-web-search-bocha)"
   ],

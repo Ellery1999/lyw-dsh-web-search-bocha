@@ -1,175 +1,247 @@
-# @lyw/dsh-web-search-bocha
+# dsh-web-search-bocha
 
 [English](README.md) | 中文
 
-> **适配版（fork）。** 这是
-> [`@bocha-ai/dsh-web-search-bocha`](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha)
-> 0.1.0 针对 **dsh 0.1.7-rc.2** 的社区适配版。上游包依赖
-> `@deepseek-ai/dsh-settings` `^0.1.0-rc.5`，并从中导入
-> `installSettingsSection` / `settingsNamespace`，而该包在 **0.1.2-rc.1 中移除了这两个导出**。
-> 由于 ESM 具名导入在链接阶段解析，上游包在 0.1.7-rc.2 上**完全无法加载**。
->
-> 具体改动见[适配说明](#适配说明)。
+给 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 接入 [博查 Web Search](https://open.bocha.cn/) 的搜索后端 —— 让 `web_search` 工具在 **dsh 0.1.7-rc.2** 上真正可用，使用国内合规、无需 DeepSeek key 的搜索服务。
 
-由 [Bocha Web Search](https://open.bocha.cn/) 支持的 `WebSearchProvider` 和可安装 Profile 组合包（bundle），用于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)。该包注册提供方 ID `bocha`，调用博查的 `POST /v1/web-search` 端点，并携带一个 `dsh.bundle` patch，安装后选择这个提供方。
+> **这是博查官方插件的兼容性适配版（fork）。**
+> 基于博查官方发布的 [`@bocha-ai/dsh-web-search-bocha`](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha) 0.1.0。上游包在当前 dsh 上无法加载，本适配版只移除了那一个不兼容依赖，其余代码原样保留。详见[为什么要做这个适配版](#为什么要做这个适配版)。
 
-该包只提供搜索。DeepSeek Harness 继续通过其 [web 能力](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/web/web)拥有面向模型的 `web_search` 工具、结果上限、引用、提供方选择和错误呈现。
+## 解决什么问题
+
+dsh 默认把 `web_search` 路由到 DeepSeek 自带的搜索后端，需要 `DEEPSEEK_API_KEY`。如果你用第三方模型服务商跑 dsh（很常见），就没有这个 key，于是每次搜索都失败：
+
+```
+Error: DeepSeek search has no API key for "DEEPSEEK_API_KEY"
+```
+
+本插件把这个后端换成博查。你能拿到国内合规的搜索结果（标题、链接、发布时间），并且改用博查 key，而不是 DeepSeek key。
+
+## 特性
+
+- 在 dsh 的 `ctx.web` 上注册提供方 ID `bocha`，现有 `web_search` 工具自动路由过去，无需改动任何工具。
+- 把博查的 `webPages[].name` / `summary` / `datePublished` 映射到 Harness 的可移植来源类型。
+- 每次搜索都通过凭据服务解析 API key —— 换 key 后下一次请求就生效，无需重启。
+- 结果数量限制、引用渲染、提供方选择和错误呈现仍由 dsh 负责。
+- 无需构建：直接提供纯 ESM 产物。
+- 支持 `maxResults`，并按博查公布的上限 50 截断。
+
+## 环境要求
+
+| 项目 | 版本 |
+|---|---|
+| DeepSeek Harness | **0.1.7-rc.2**（已实测） |
+| Node.js | `^22.19.0` 或 `>=24.0.0` |
+| 博查 API Key | 来自 [open.bocha.cn](https://open.bocha.cn/) |
 
 ## 安装
 
-把组合包安装到 Profile：
+### 1. 获取插件
 
 ```sh
-dsh plugin --profile desktop add /path/to/lyw-dsh-web-search-bocha
+git clone https://github.com/Ellery1999/lyw-dsh-web-search-bocha.git
 ```
 
-> **重要——不要装在 Profile 之外。** 用 `link:`/junction 安装会解析到真实路径，落在 Profile
-> 目录之外。dsh 加载器只为 Profile 树**之内**的导入路径路由 peer 模块
-> （`@deepseek-ai/*`），因此链接安装会报 `failed to import`。请安装成 `node_modules`
-> 里的**真实副本**（把 `file:` 依赖 vendor 到 Profile 下是可靠做法）。
+### 2. 装进你的 Profile
 
-如需检查最终组合配置，可以执行下面的可选命令；它打印配置后就会退出：
+按你运行 dsh 的方式选一种。
+
+<details open>
+<summary><b>方式 A —— dsh CLI（推荐）</b></summary>
 
 ```sh
-dsh --profile desktop --dump-config
+dsh plugin --profile <你的profile> add /absolute/path/to/lyw-dsh-web-search-bocha
 ```
 
-启动 Web 应用只需要执行：
+把 `<你的profile>` 换成实际名称（`desktop`、`web`、`tui` 等）。插件声明了 `dsh.bundle`，CLI 会同时把它加进 Profile 的 bundle 列表。
+
+</details>
+
+<details>
+<summary><b>方式 B —— 直接用 pnpm，vendor 到 Profile 内部</b></summary>
+
+这是作者自己桌面端 Profile 采用的布局，能经受 `pnpm install` 而不被改成 junction：
 
 ```sh
-dsh --profile web
+mkdir -p ~/.dsh/profiles/<你的profile>/vendor
+cp -r /absolute/path/to/lyw-dsh-web-search-bocha ~/.dsh/profiles/<你的profile>/vendor/
 ```
 
-API 密钥使用下面任一方式配置即可，不需要同时配置。
+然后在 `~/.dsh/profiles/<你的profile>/package.json` 里加：
 
-### 方式一：DSH credentials 文档
+```json
+{
+  "dependencies": {
+    "@lyw/dsh-web-search-bocha": "file:vendor/dsh-web-search-bocha"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app",
+        "@lyw/dsh-web-search-bocha"
+      ]
+    }
+  }
+}
+```
 
-把密钥存入 `$DSH_HOME/.credentials.yaml`（通常是 `~/.dsh/.credentials.yaml`）：
+最后在 Profile 目录里执行 `pnpm install`。
+
+</details>
+
+### 3. 把搜索指向博查并加插件行
+
+追加到 `~/.dsh/profiles/<你的profile>/cordis.patch.yml`：
+
+```yaml
+- id: web
+  name: "@deepseek-ai/dsh-web"
+  config:
+    searchProvider: bocha
+
+- id: web-search-bocha
+  name: "@lyw/dsh-web-search-bocha"
+  config:
+    apiKeyEnv: BOCHA_API_KEY
+    freshness: noLimit
+    summary: true
+    count: 10
+```
+
+> 插件自带的 bundle patch 已经设置了 `searchProvider: bocha` 并插入了该行。这里再写一遍，是为了把选择固定在你的顶层用户层，避免 bundle 变动时被覆盖。
+
+### 4. 存入博查 Key
+
+写进 `~/.dsh/.credentials.yaml`：
 
 ```yaml
 BOCHA_API_KEY: your-api-key
 ```
 
-在 POSIX 上，该文件必须仅属主可访问：
+POSIX 上请限制文件权限：
 
 ```sh
 chmod 600 ~/.dsh/.credentials.yaml
 ```
 
-插件会在每次搜索时经由 Harness credentials 服务解析这个引用，因此轮换已存密钥后，下一次请求就会使用新值，无需重启。
+<details>
+<summary>备选：环境变量</summary>
 
-### 方式二：环境变量
-
-对于 CI、容器或按次覆盖，在启动 Harness 前导出密钥：
+适用于 CI、容器或临时覆盖。启动 dsh 前导出：
 
 ```sh
 export BOCHA_API_KEY='your-api-key'
 ```
 
-如果两种方式都配置了 `BOCHA_API_KEY`，继承的环境变量优先级高于受管凭据文档。
+两者都配置时，继承的环境变量优先于凭据文档。
 
-移除这个包会同时移除其提供方行和组合包层：
+</details>
 
-```sh
-dsh plugin --profile desktop remove @lyw/dsh-web-search-bocha
+### 5. 重启 dsh
+
+搜索即走博查。让 agent 随便搜点东西即可验证。
+
+## ⚠️ 安装陷阱
+
+有两个坑耗费了实际调试时间，症状相同：插件静默不激活。
+
+### 陷阱 1 —— 绝不要用 link 或 junction 安装
+
+`link:` / junction / 符号链接安装会解析到**真实路径，落在 Profile 目录之外**。dsh 加载器只为 Profile 树**之内**的导入路径路由 peer 模块（`@deepseek-ai/*`），因此链接安装会失败：
+
+```
+dsh: warning: 1 entry did not activate
+web-search-bocha (@lyw/dsh-web-search-bocha): failed to import
 ```
 
-## 组合包行为
+这就是上面方式 A 采用复制而非链接的原因，也是**不要用 Web UI 的「本地插件目录」输入框**装这个插件的原因。请用方式 A、方式 B，或传打包好的 `.tgz`（压缩包会解压成真实文件）。
 
-`cordis.patch.yml` 把基础 `web` 行的完整配置替换为 `searchProvider: bocha`，并插入加载本包的 `web-search-bocha` 行。现有提供方仍保持挂载，但 `ctx.web` 会把搜索路由到 `bocha`。随后应用的 Profile、Harness home 和命令行 patch 层可以替换任一行。
+确认装成了真实目录（`LinkType` 必须为空）：
 
-## 配置
+```powershell
+Get-Item "$env:USERPROFILE\.dsh\profiles\<profile>\node_modules\@lyw\dsh-web-search-bocha" -Force |
+  Select-Object LinkType
+```
+
+### 陷阱 2 —— Web UI 里没有这个插件的配置页
+
+博查官方插件当年通过 `dsh-settings` 注册了设置页。该 API 在 dsh 0.1.7-rc.2 上已不存在，配置页现在由客户端 slot 注册产生。本适配版不含客户端半包，所以**界面上没有配置页**，插件在 **设置 → 插件** 里只有一个启用开关。
+
+请通过 Profile patch 配置（[第 3 步](#3-把搜索指向博查并加插件行)）并重启。这也正是官方插件自己文档对第三方搜索设置推荐的方式。
+
+## 配置项
+
+在 `cordis.patch.yml` 的 `web-search-bocha` 行里设置。
 
 | 配置键 | 默认值 | 含义 |
 |---|---|---|
-| `apiKey` | — | 可选的博查 API 密钥字面值。settings 描述会将它脱敏，但仍应优先使用 credentials 服务，以免明文密钥进入 Profile patch。 |
-| `apiKeyEnv` | `BOCHA_API_KEY` | 每次搜索都经由 Harness credentials 服务解析的凭据引用。 |
-| `baseURL` | `https://api.bocha.cn` | API 基址；追加 `/v1/web-search`。 |
-| `freshness` | `noLimit` | 每次搜索发送的时间过滤条件：`noLimit`、`oneDay`、`oneWeek`、`oneMonth`、`oneYear`，也可以是 `2025-04-06` 这样的单日，或 `2025-01-01..2025-04-06` 这样的日期区间。 |
-| `summary` | `true` | 请求博查返回较长的逐页面 `summary`。 |
-| `count` | `10` | Harness 请求不含 `maxResults` 时使用的默认数量；取值为 1 到 50 的整数。 |
+| `apiKey` | — | 博查密钥字面值。settings 描述会脱敏，但仍建议用 `apiKeyEnv`，避免明文密钥进入 Profile patch。 |
+| `apiKeyEnv` | `BOCHA_API_KEY` | 每次搜索经凭据服务解析的引用名。 |
+| `baseURL` | `https://api.bocha.cn` | API 基址；自动追加 `/v1/web-search`。 |
+| `freshness` | `noLimit` | 每次搜索发送的时间过滤：`noLimit`、`oneDay`、`oneWeek`、`oneMonth`、`oneYear`，或 `2025-04-06` 这样的单日，或 `2025-01-01..2025-04-06` 这样的区间。 |
+| `summary` | `true` | 请求博查返回较长的逐页摘要（用作 snippet）。 |
+| `count` | `10` | 请求不含 `maxResults` 时的默认条数；1–50 的整数。 |
 
-后续 Profile patch 可以配置插入的行，无需改动这个包：
+请求里的 `maxResults` 会覆盖 `count`，两者都会在发送前按博查上限 50 截断。
 
-```yaml
-- id: web-search-bocha
-  config:
-    freshness: 2025-01-01..2025-04-06
-    summary: true
-    count: 10
+## 验证安装
+
+让 agent 执行一次搜索，或检查组合后的 Profile：
+
+```sh
+dsh --profile <你的profile> --dump-config
 ```
 
-## 映射与失败
+应能看到 `web` 行下的 `searchProvider: bocha`，以及一行 `web-search-bocha`。
 
-该提供方读取 `data.webPages.value[]`。它把 `url` 映射到 `WebSearchSource.url`、`name` 映射到 `title`、`summary` 映射到 `snippet`（缺失时回退到 `snippet`），并把 `datePublished` 映射到 `publishedAt`；没有非空白 URL 的条目会被丢弃。博查的这个端点不返回单一生成答案，因此省略 `WebSearchResult.content`。
+## 卸载
 
-请求的 `maxResults` 会覆盖 `count`，并在发送请求前限制到博查的最大值 50。Harness web 能力仍会执行自身的最终来源数量限制。
+```sh
+dsh plugin --profile <你的profile> remove @lyw/dsh-web-search-bocha
+```
 
-HTTP 错误、提供方声明的非 200 代码、网络失败和无法处理的响应体会呈现为 `WebError` `WEB_PROVIDER_ERROR`。错误消息会保留博查返回的 `log_id`。中止形状的失败会呈现为 `WEB_ABORTED`，重定向会在访问目标之前被拒绝。
+再删掉你加进 `cordis.patch.yml` 的那两行。`web_search` 会回退到之前的提供方选择。
 
-提供方会在每次搜索入口解析所引用的凭据，因此通过 UI 存入或轮换的密钥会在下一次请求生效，无需重启或重新注册提供方。引用的凭据缺失时会呈现为 `WEB_PROVIDER_CREDENTIAL_MISSING`。
+## 工作原理
 
-## 适配说明
+提供方调用博查的 `POST /v1/web-search`，并把响应映射到 dsh 的可移植来源类型：`url` → `source.url`，`name` → `title`，`summary`（缺失时回退 `snippet`）→ `snippet`，`datePublished` → `publishedAt`。没有非空 URL 的条目会被丢弃。该端点不返回单一生成答案，因此 `WebSearchResult.content` 留空。
 
-### 为什么上游包在 dsh 0.1.7-rc.2 上无法加载
+失败以带机器可路由码的 `WebError` 呈现：缺少凭据是 `WEB_PROVIDER_CREDENTIAL_MISSING`，取消是 `WEB_ABORTED`，HTTP 错误、提供方声明的非 200 码、网络失败和无法解析的响应体是 `WEB_PROVIDER_ERROR`（有 `log_id` 时会保留）。重定向会在访问目标之前被拒绝。
 
-上游 `@bocha-ai/dsh-web-search-bocha@0.1.0` 声明 `@deepseek-ai/dsh-settings: ^0.1.0-rc.5`，
-并从中导入两个具名导出：
+## 为什么要做这个适配版
+
+上游 `@bocha-ai/dsh-web-search-bocha@0.1.0` 声明 `@deepseek-ai/dsh-settings: ^0.1.0-rc.5`，并从中导入两个具名导出：
 
 ```js
 import { installSettingsSection, settingsNamespace } from "@deepseek-ai/dsh-settings";
 ```
 
-`dsh-settings` 在 **0.1.2-rc.1 中移除了这两者**，改为 `SettingsForms` 服务（`ctx.settings`）。
-对照已发布构建实测：
+`dsh-settings` 在 **0.1.2-rc.1 中移除了这两者**，改为 `SettingsForms` 服务（`ctx.settings`）。对照已发布构建实测：
 
 | `dsh-settings` | `installSettingsSection` / `settingsNamespace` |
 |---|---|
 | 0.1.0-rc.2 … 0.1.1-rc.2 | 存在 |
 | **0.1.2-rc.1 起（含 0.1.5.x、0.1.7-rc.2）** | **已移除** |
 
-ESM 在模块链接阶段解析具名导入，缺失的导出是**硬性 `SyntaxError`**，不是可捕获的运行时错误。
-该插件行会以 `failed to import` 失败，提供方永远不会注册。声明的 peer 范围
-`^0.1.0-rc.5` 无法阻止这一点，因为它允许 `<0.2.0`。
+ESM 在模块链接阶段解析具名导入，缺失的导出是**硬性 `SyntaxError`**，try/catch 拦不住。该插件行会以 `failed to import` 失败，提供方永远不会注册。声明的 peer 范围 `^0.1.0-rc.5` 挡不住，因为它允许 `0.2.0` 以下任意版本。
 
-### 本适配版的改动
+### 改动内容
 
 共三处，全部限于 `lib/index.js`：
 
 1. 完全移除 `@deepseek-ai/dsh-settings` 导入。
-2. 从 `apply()` 中移除 `installSettingsSection(...)` 调用。`apply()` 现在直接把 `config`
-   传给提供方，不再经过由设置驱动的 `current()` 间接层。
-3. `WEB_SEARCH_BOCHA_SETTINGS_NAMESPACE` 改为普通字符串字面量，不再调用
-   `settingsNamespace("web-search-bocha")`。
+2. 从 `apply()` 中移除 `installSettingsSection(...)` 调用。配置现在直接传给提供方，不再经过由设置驱动的 `current()` 间接层。
+3. `WEB_SEARCH_BOCHA_SETTINGS_NAMESPACE` 改为普通字符串字面量，不再调用 `settingsNamespace(...)`。
 
-提供方实现（`BochaSearchProvider`）、`Config` schema、结果映射与错误处理**均未改动**。
-
-### 结果：没有图形界面配置页
-
-上游通过那个被移除的 API 注册设置页。在 dsh 0.1.7-rc.2 上，配置页由注册**客户端 slot**
-产生，而不是声明 host 端设置。相关 slot（见 `dsh-cordis-client-runner` 内嵌文档）：
-
-| Slot | 用途 |
-|---|---|
-| `plugins.item` | 插件自己的页面——已被四个官方页占用 |
-| `plugins.bundle.config` | 整个 bundle 的配置 |
-| `plugins.row.config` | 单行配置，键为 `<包名>#<行id>` |
-
-本适配版**未注册任何客户端 slot**，因此没有配置页。host 端 `describe()` 返回的
-`autoGenerate` 字段没有任何已发布的客户端包消费它，所以它也不会生成页面。
-
-**请改用 Profile patch 配置**（`cordis.patch.yml`），然后重启。API 密钥存放在凭据文档中，
-可随时在那里轮换。
+`BochaSearchProvider`、`Config` schema、结果映射与错误处理**与上游逐字节一致**。唯一的行为差异是没有图形界面配置页。
 
 ## 开发
 
-本适配版直接提供预构建的 `lib/index.js`（纯 ESM，无构建步骤）。改动后通过加载模块并对
-桩 context 调用 `apply()` 来验证——本适配版未配置测试运行器。
-
-仅在有博查密钥时运行实时 smoke：
+本包直接提供预构建的纯 ESM 产物，没有编译步骤。改完 `lib/index.js` 后，重新加载模块并对桩 context 调用 `apply()`：
 
 ```sh
-BOCHA_API_KEY='your-api-key' node --input-type=module -e "
+node --input-type=module -e "
 import { BochaSearchProvider } from './lib/index.js'
 const p = new BochaSearchProvider(() => ({
   apiKey: process.env.BOCHA_API_KEY,
@@ -179,23 +251,18 @@ console.log(await p.search({ query: 'DeepSeek Harness', maxResults: 3 }))
 "
 ```
 
-## 模型体验
+若用方式 A/B 装的是复制副本，改完需重新复制，Profile 才能看到改动，然后重启 dsh。
 
-通过 DeepSeek Harness `dsh-tool-web` 间接影响；该工具在稳定的 `web_search` 工具契约下呈现此提供方经过数量限制的 URL、标题、摘要或 snippet 与发布日期。
+## 兼容性说明
 
-#### KV Cache 影响
+- 仅在 **dsh 0.1.7-rc.2** 上实测。
+- dsh 处于 Developer Preview，已经破坏过这个插件的 API 一次。若未来版本再次重命名 web seam 或来源类型，本适配版需要同样的处理。
+- 上游可能发布修复版本；在假定本适配版仍必要之前，请先查看 [npm](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha)。
 
-不会直接导致 KV Cache 失效；请求前缀变更由 Harness 工具消费方负责。
+## 致谢与许可
 
-## 已知限制与暂缓事项
+MIT。原始插件 © 2026 **博查（Bocha）** —— [`@bocha-ai/dsh-web-search-bocha`](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha)，[open.bocha.cn](https://open.bocha.cn/)。上游 `LICENSE` 原样保留。
 
-- **没有配置页**：见[适配说明](#适配说明)。请通过 Profile 行配置，并把 `BOCHA_API_KEY` 存进凭据文档或启动环境。要加页面需补一个客户端半包（`lib/client.js` 加 `dsh.client` 声明），注册 `plugins.row.config`。
-- **`freshness` 是部署配置，而不是面向模型的参数**：同一个已挂载提供方的每次请求都使用相同的 `freshness` 值，因为提供方无关的 Harness 请求目前只携带 `query` 和 `maxResults`。
-- **省略博查特有的 `siteName` 和其他媒体字段**：Harness 的可移植来源类型没有站点名称、图片或视频字段。
-- **一次 API 调用最多返回 50 个来源**：较大的 Harness `maxResults` 请求会在传输前限制到博查记录的最大值。
-- **必须安装为 Profile 内的真实目录**：`link:` 安装会解析到 Profile 树之外，加载器的 peer 路由不适用。
+dsh 0.1.7-rc.2 兼容性适配 © 2026 [Ellery1999](https://github.com/Ellery1999)。
 
-## 许可
-
-MIT，继承自上游。原始作品版权 (c) 2026 Bocha，见 [LICENSE](LICENSE)。
-适配改动版权 (c) 2026 适配版作者。
+本适配版与博查、DeepSeek 均无隶属或背书关系。
