@@ -2,6 +2,10 @@
 
 English | [中文](README.zh.md)
 
+[![Release](https://img.shields.io/github/v/release/Ellery1999/lyw-dsh-web-search-bocha?label=download&sort=semver)](https://github.com/Ellery1999/lyw-dsh-web-search-bocha/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![dsh](https://img.shields.io/badge/dsh-0.1.7--rc.2-informational)
+
 A [Bocha Web Search](https://open.bocha.cn/) backend for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — gives the `web_search` tool a working, China-friendly search provider so your agent can actually search the web on **dsh 0.1.7-rc.2**.
 
 > **This is a compatibility fork of the official Bocha plugin.**
@@ -44,16 +48,32 @@ git clone https://github.com/Ellery1999/lyw-dsh-web-search-bocha.git
 
 ### 2. Install it into your Profile
 
-Choose the method that matches how you run dsh.
+**If you use the dsh Web UI**, the easiest path is the prebuilt tarball on the
+[releases page](https://github.com/Ellery1999/lyw-dsh-web-search-bocha/releases/latest):
+
+1. Download `lyw-dsh-web-search-bocha-<version>.tgz`.
+2. Open **Settings → Plugins → Add plugin**.
+3. Paste the **absolute path to the `.tgz`** and install.
+
+A tarball unpacks into real files, so it sidesteps the link/junction trap described
+below. Do **not** point the same field at the unpacked source *directory*.
+
+Prefer the command line? Choose either option below.
 
 <details open>
-<summary><b>Option A — dsh CLI (recommended)</b></summary>
+<summary><b>Option A — dsh CLI</b></summary>
 
 ```sh
 dsh plugin --profile <your-profile> add /absolute/path/to/lyw-dsh-web-search-bocha
 ```
 
 Use your actual Profile name (`desktop`, `web`, `tui`, …). The plugin declares `dsh.bundle`, so the CLI also adds it to your Profile's bundle list.
+
+The CLI also accepts the tarball directly:
+
+```sh
+dsh plugin --profile <your-profile> add /absolute/path/to/lyw-dsh-web-search-bocha-<version>.tgz
+```
 
 </details>
 
@@ -155,7 +175,17 @@ dsh: warning: 1 entry did not activate
 web-search-bocha (@lyw/dsh-web-search-bocha): failed to import
 ```
 
-This is why Option A above vendor-copies instead of linking, and why you should **not** use the Web UI's "local plugin directory" field for this plugin. Use Option A, Option B, or pass a packed `.tgz` instead — tarballs unpack into real files.
+This is why the install options above copy or unpack instead of linking. Concretely:
+
+| What you pass | Installed as | Safe? |
+|---|---|---|
+| npm package name | fetched and unpacked | ✅ |
+| GitHub repo URL | cloned | ✅ |
+| **`.tgz` tarball** | unpacked | ✅ |
+| **Local source *directory*** | `link:` → junction | ❌ **fails** |
+
+So in the Web UI's **Add plugin** dialog, give it the `.tgz` — never the unpacked
+source directory. Anything that resolves through a symlink will hit this.
 
 Confirm the install is a real directory (`LinkType` must be empty):
 

@@ -2,6 +2,10 @@
 
 [English](README.md) | 中文
 
+[![Release](https://img.shields.io/github/v/release/Ellery1999/lyw-dsh-web-search-bocha?label=download&sort=semver)](https://github.com/Ellery1999/lyw-dsh-web-search-bocha/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![dsh](https://img.shields.io/badge/dsh-0.1.7--rc.2-informational)
+
 给 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 接入 [博查 Web Search](https://open.bocha.cn/) 的搜索后端 —— 让 `web_search` 工具在 **dsh 0.1.7-rc.2** 上真正可用，使用国内合规、无需 DeepSeek key 的搜索服务。
 
 > **这是博查官方插件的兼容性适配版（fork）。**
@@ -44,16 +48,30 @@ git clone https://github.com/Ellery1999/lyw-dsh-web-search-bocha.git
 
 ### 2. 装进你的 Profile
 
-按你运行 dsh 的方式选一种。
+**如果你用 dsh 的 Web 界面**，最省事的是 [Releases 页](https://github.com/Ellery1999/lyw-dsh-web-search-bocha/releases/latest) 上预打包好的 tarball：
+
+1. 下载 `lyw-dsh-web-search-bocha-<version>.tgz`。
+2. 打开 **设置 → 插件 → 添加插件**。
+3. 填入该 `.tgz` 的**绝对路径**并安装。
+
+tarball 会解压成真实文件，因此绕开了下面说的 link/junction 陷阱。**不要**把同一个输入框指向解压后的源码**目录**。
+
+更习惯命令行的话，选下面任一种。
 
 <details open>
-<summary><b>方式 A —— dsh CLI（推荐）</b></summary>
+<summary><b>方式 A —— dsh CLI</b></summary>
 
 ```sh
 dsh plugin --profile <你的profile> add /absolute/path/to/lyw-dsh-web-search-bocha
 ```
 
 把 `<你的profile>` 换成实际名称（`desktop`、`web`、`tui` 等）。插件声明了 `dsh.bundle`，CLI 会同时把它加进 Profile 的 bundle 列表。
+
+CLI 也可以直接吃 tarball：
+
+```sh
+dsh plugin --profile <你的profile> add /absolute/path/to/lyw-dsh-web-search-bocha-<version>.tgz
+```
 
 </details>
 
@@ -155,7 +173,16 @@ dsh: warning: 1 entry did not activate
 web-search-bocha (@lyw/dsh-web-search-bocha): failed to import
 ```
 
-这就是上面方式 A 采用复制而非链接的原因，也是**不要用 Web UI 的「本地插件目录」输入框**装这个插件的原因。请用方式 A、方式 B，或传打包好的 `.tgz`（压缩包会解压成真实文件）。
+这就是上面各安装方式采用复制或解压、而非链接的原因。具体如下：
+
+| 你填入的内容 | 实际安装形态 | 安全？ |
+|---|---|---|
+| npm 包名 | 拉取并解包 | ✅ |
+| GitHub 仓库地址 | clone | ✅ |
+| **`.tgz` 压缩包** | 解包 | ✅ |
+| **本地源码*目录*** | `link:` → junction | ❌ **会失败** |
+
+所以在 Web UI 的**添加插件**对话框里，请填 `.tgz`，**绝不要填解压后的源码目录**。任何经由符号链接解析的路径都会踩到这个坑。
 
 确认装成了真实目录（`LinkType` 必须为空）：
 
