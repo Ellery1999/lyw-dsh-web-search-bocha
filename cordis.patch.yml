@@ -1,0 +1,16 @@
+# Select the Bocha provider in the base web runtime. A later profile or command-line
+# patch can replace this complete config value.
+- id: web
+  config:
+    searchProvider: bocha
+
+# Mount the provider beside the base bundle's existing providers. Removing this
+# bundle removes the row and restores the preceding web selection.
+- insert:
+    - id: web-search-bocha
+      name: '@lyw/dsh-web-search-bocha'
+      config:
+        apiKeyEnv: BOCHA_API_KEY
+        freshness: noLimit
+        summary: true
+        count: 10
