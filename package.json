@@ -1,7 +1,7 @@
 {
   "name": "@lyw/dsh-web-search-bocha",
-  "description": "Bocha-backed WebSearchProvider for DeepSeek Harness, adapted for dsh 0.1.7-rc.2 (removes the removed dsh-settings installSettingsSection API)",
-  "version": "0.1.7-rc.2.1",
+  "description": "Bocha-backed WebSearchProvider for DeepSeek Harness, adapted for dsh 0.2.0-rc.1 (removes the removed dsh-settings installSettingsSection API)",
+  "version": "0.2.0-rc.1.1",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -19,7 +19,7 @@
   ],
   "engines": {
     "node": "^22.19.0 || >=24.0.0",
-    "dsh": "0.1.7-rc.2"
+    "dsh": "0.2.0-rc.1"
   },
   "keywords": [
     "bocha",
@@ -46,9 +46,9 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-credentials": "^0.1.5-rc.1",
-    "@deepseek-ai/dsh-launch-environment": "^0.1.5-rc.1",
-    "@deepseek-ai/dsh-web": "^0.1.5-rc.1"
+    "@deepseek-ai/dsh-credentials": "^0.2.0-rc.1",
+    "@deepseek-ai/dsh-launch-environment": "^0.2.0-rc.1",
+    "@deepseek-ai/dsh-web": "^0.2.0-rc.1"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.18.1"
