@@ -4,9 +4,9 @@ English | [中文](README.zh.md)
 
 [![Release](https://img.shields.io/github/v/release/Ellery1999/lyw-dsh-web-search-bocha?label=download&sort=semver)](https://github.com/Ellery1999/lyw-dsh-web-search-bocha/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![dsh](https://img.shields.io/badge/dsh-0.2.0--rc.1-informational)
+![dsh](https://img.shields.io/badge/dsh-%5E0.2.0--rc.1-informational)
 
-A [Bocha Web Search](https://open.bocha.cn/) backend for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — gives the `web_search` tool a working, China-friendly search provider so your agent can actually search the web on **dsh 0.2.0-rc.1**.
+A [Bocha Web Search](https://open.bocha.cn/) backend for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — gives the `web_search` tool a working, China-friendly search provider so your agent can actually search the web on **dsh 0.2.0-rc.1 and later** (verified through **0.2.1-rc.1**).
 
 > **This is a compatibility fork of the official Bocha plugin.**
 > Built on [`@bocha-ai/dsh-web-search-bocha`](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha) 0.1.0, published by Bocha ([open.bocha.cn](https://open.bocha.cn/)). The upstream package cannot load on current dsh, so this fork removes exactly the one incompatible dependency and leaves everything else untouched. See [Why this fork exists](#why-this-fork-exists).
@@ -34,7 +34,7 @@ This plugin replaces that backend with Bocha. You get domestic, compliant search
 
 | Requirement | Version |
 |---|---|
-| DeepSeek Harness | **0.2.0-rc.1** (verified) |
+| DeepSeek Harness | **`^0.2.0-rc.1`** (verified on 0.2.0-rc.1 and 0.2.1-rc.1) |
 | Node.js | `^22.19.0` or `>=24.0.0` |
 | Bocha API key | from [open.bocha.cn](https://open.bocha.cn/) |
 
@@ -252,7 +252,7 @@ import { installSettingsSection, settingsNamespace } from "@deepseek-ai/dsh-sett
 | `dsh-settings` | `installSettingsSection` / `settingsNamespace` |
 |---|---|
 | 0.1.0-rc.2 … 0.1.1-rc.2 | present |
-| **0.1.2-rc.1 and later (incl. 0.1.5.x, 0.1.7-rc.2, 0.2.0-rc.1)** | **removed** |
+| **0.1.2-rc.1 and later (incl. 0.1.5.x, 0.1.7-rc.2, 0.2.0-rc.1, 0.2.1-rc.1)** | **removed** |
 
 ESM resolves named imports during module linking, so a missing export is a hard `SyntaxError` at load — not something a try/catch can absorb. The plugin row fails with `failed to import` and never registers its provider. The declared peer range `^0.1.0-rc.5` does not prevent this, because it permits anything below `0.2.0`.
 
@@ -285,8 +285,10 @@ If you installed via Option A or B with a copied directory, re-copy after editin
 
 ## Compatibility notes
 
-- Tested against **dsh 0.2.0-rc.1** only.
-- dsh 0.2.0-rc.1 adds a plugin compatibility gate: `dsh-app-boot` validates every `@deepseek-ai/dsh*` entry in a plugin's `peerDependencies` with `semver.satisfies(runtime, range, { includePrerelease: true })` and **skips the whole bundle** when one fails, reporting `is incompatible with dsh 0.2.0-rc.1`. This release updates those peer ranges to `^0.2.0-rc.1`. Without that change you can also grant a per-version exemption with `dsh plugin --profile <name> allow-version "<pkg>@<ver>" --dsh-version 0.2.0-rc.1 --accept-risk`.
+- Tested against **dsh 0.2.0-rc.1 and 0.2.1-rc.1**.
+- dsh 0.2.0-rc.1 adds a plugin compatibility gate: `dsh-app-boot` validates every `@deepseek-ai/dsh*` entry in a plugin's `peerDependencies` with `semver.satisfies(runtime, range, { includePrerelease: true })` and **skips the whole bundle** when one fails, reporting `is incompatible with dsh …`. This release's peer ranges are `^0.2.0-rc.1`.
+- **dsh 0.2.1-rc.1 extends that gate to `engines.dsh`**: once the manifest declares `engines.dsh`, that range is checked **first and alone** (peers are then ignored), with the same `semver.satisfies(..., { includePrerelease: true })` rule. Earlier releases (0.2.0.x) ignored `engines` entirely, which is why this fork's old exact pin `engines.dsh: "0.2.0-rc.1"` loaded fine there but **fails the 0.2.1-rc.1 gate at load time**. Version `0.2.1-rc.1.1` widens it to `^0.2.0-rc.1`. No plugin code changed between `0.2.0-rc.1.1` and `0.2.1-rc.1.1` — every seam this plugin touches (`@deepseek-ai/dsh-web`, `dsh-credentials`, `dsh-launch-environment`, the Loader entry config, and the vendored cordis loader) is source-identical between 0.2.0-rc.2 and 0.2.1-rc.1.
+- Without the widened range you can also grant a per-version exemption with `dsh plugin --profile <name> allow-version "<pkg>@<ver>" --dsh-version <runtime> --accept-risk`.
 - dsh is in Developer Preview and has already broken this plugin's API surface once. If a future release renames the web seam or the source type, this fork will need the same treatment again.
 - The upstream package may publish a fixed version; check [npm](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha) before assuming this fork is still needed.
 
@@ -294,6 +296,6 @@ If you installed via Option A or B with a copied directory, re-copy after editin
 
 MIT. Original plugin © 2026 **Bocha** — [`@bocha-ai/dsh-web-search-bocha`](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha), [open.bocha.cn](https://open.bocha.cn/). The upstream `LICENSE` is retained verbatim.
 
-Compatibility adaptation for dsh 0.2.0-rc.1 © 2026 [Ellery1999](https://github.com/Ellery1999).
+Compatibility adaptation for dsh 0.2.x © 2026 [Ellery1999](https://github.com/Ellery1999).
 
 This fork is not affiliated with or endorsed by Bocha or DeepSeek.

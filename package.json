@@ -1,7 +1,7 @@
 {
   "name": "@lyw/dsh-web-search-bocha",
-  "description": "Bocha-backed WebSearchProvider for DeepSeek Harness, adapted for dsh 0.2.0-rc.1 (removes the removed dsh-settings installSettingsSection API)",
-  "version": "0.2.0-rc.1.1",
+  "description": "Bocha-backed WebSearchProvider for DeepSeek Harness, adapted for dsh 0.2.0-rc.1 and later (removes the removed dsh-settings installSettingsSection API; engines.dsh widened for the 0.2.1-rc.1 engines gate)",
+  "version": "0.2.1-rc.1.1",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -19,7 +19,7 @@
   ],
   "engines": {
     "node": "^22.19.0 || >=24.0.0",
-    "dsh": "0.2.0-rc.1"
+    "dsh": "^0.2.0-rc.1"
   },
   "keywords": [
     "bocha",

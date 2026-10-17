@@ -4,9 +4,9 @@
 
 [![Release](https://img.shields.io/github/v/release/Ellery1999/lyw-dsh-web-search-bocha?label=download&sort=semver)](https://github.com/Ellery1999/lyw-dsh-web-search-bocha/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![dsh](https://img.shields.io/badge/dsh-0.2.0--rc.1-informational)
+![dsh](https://img.shields.io/badge/dsh-%5E0.2.0--rc.1-informational)
 
-给 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 接入 [博查 Web Search](https://open.bocha.cn/) 的搜索后端 —— 让 `web_search` 工具在 **dsh 0.2.0-rc.1** 上真正可用，使用国内合规、无需 DeepSeek key 的搜索服务。
+给 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 接入 [博查 Web Search](https://open.bocha.cn/) 的搜索后端 —— 让 `web_search` 工具在 **dsh 0.2.0-rc.1 及之后版本**上真正可用（已实测到 **0.2.1-rc.1**），使用国内合规、无需 DeepSeek key 的搜索服务。
 
 > **这是博查官方插件的兼容性适配版（fork）。**
 > 基于博查官方发布的 [`@bocha-ai/dsh-web-search-bocha`](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha) 0.1.0。上游包在当前 dsh 上无法加载，本适配版只移除了那一个不兼容依赖，其余代码原样保留。详见[为什么要做这个适配版](#为什么要做这个适配版)。
@@ -34,7 +34,7 @@ Error: DeepSeek search has no API key for "DEEPSEEK_API_KEY"
 
 | 项目 | 版本 |
 |---|---|
-| DeepSeek Harness | **0.2.0-rc.1**（已实测） |
+| DeepSeek Harness | **`^0.2.0-rc.1`**（已实测 0.2.0-rc.1 与 0.2.1-rc.1） |
 | Node.js | `^22.19.0` 或 `>=24.0.0` |
 | 博查 API Key | 来自 [open.bocha.cn](https://open.bocha.cn/) |
 
@@ -249,7 +249,7 @@ import { installSettingsSection, settingsNamespace } from "@deepseek-ai/dsh-sett
 | `dsh-settings` | `installSettingsSection` / `settingsNamespace` |
 |---|---|
 | 0.1.0-rc.2 … 0.1.1-rc.2 | 存在 |
-| **0.1.2-rc.1 起（含 0.1.5.x、0.1.7-rc.2、0.2.0-rc.1）** | **已移除** |
+| **0.1.2-rc.1 起（含 0.1.5.x、0.1.7-rc.2、0.2.0-rc.1、0.2.1-rc.1）** | **已移除** |
 
 ESM 在模块链接阶段解析具名导入，缺失的导出是**硬性 `SyntaxError`**，try/catch 拦不住。该插件行会以 `failed to import` 失败，提供方永远不会注册。声明的 peer 范围 `^0.1.0-rc.5` 挡不住，因为它允许 `0.2.0` 以下任意版本。
 
@@ -282,8 +282,10 @@ console.log(await p.search({ query: 'DeepSeek Harness', maxResults: 3 }))
 
 ## 兼容性说明
 
-- 仅在 **dsh 0.2.0-rc.1** 上实测。
-- dsh 0.2.0-rc.1 新增了插件兼容性闸门：`dsh-app-boot` 会用 `semver.satisfies(runtime, range, { includePrerelease: true })` 校验插件 `peerDependencies` 中所有 `@deepseek-ai/dsh*` 项，不满足就**跳过整个 bundle** 并报 `is incompatible with dsh 0.2.0-rc.1`。本版本的 peer 范围已随之更新为 `^0.2.0-rc.1`。若不改声明，也可用 `dsh plugin --profile <name> allow-version "<pkg>@<ver>" --dsh-version 0.2.0-rc.1 --accept-risk` 逐版本豁免。
+- 已在 **dsh 0.2.0-rc.1 与 0.2.1-rc.1** 上实测。
+- dsh 0.2.0-rc.1 新增了插件兼容性闸门：`dsh-app-boot` 会用 `semver.satisfies(runtime, range, { includePrerelease: true })` 校验插件 `peerDependencies` 中所有 `@deepseek-ai/dsh*` 项，不满足就**跳过整个 bundle** 并报 `is incompatible with dsh …`。本版本的 peer 范围为 `^0.2.0-rc.1`。
+- **dsh 0.2.1-rc.1 把闸门扩展到了 `engines.dsh`**：manifest 一旦声明 `engines.dsh`，就**只查它、且最先查**（peer 随之被忽略），规则同样是 `semver.satisfies(..., { includePrerelease: true })`。更早的版本（0.2.0.x）完全忽略 `engines`，所以本适配版原先写死的 `engines.dsh: "0.2.0-rc.1"` 在 0.2.0.x 能正常加载，但在 **0.2.1-rc.1 会在加载时被闸门直接拦下**。`0.2.1-rc.1.1` 版本把它放宽为 `^0.2.0-rc.1`。`0.2.0-rc.1.1` 与 `0.2.1-rc.1.1` 之间**没有任何插件代码改动** —— 本插件用到的所有接缝（`@deepseek-ai/dsh-web`、`dsh-credentials`、`dsh-launch-environment`、Loader 条目配置、vendored cordis loader）在 0.2.0-rc.2 与 0.2.1-rc.1 之间源码完全一致。
+- 若不想改声明，也可以用 `dsh plugin --profile <name> allow-version "<pkg>@<ver>" --dsh-version <运行时版本> --accept-risk` 逐版本豁免。
 - dsh 处于 Developer Preview，已经破坏过这个插件的 API 一次。若未来版本再次重命名 web seam 或来源类型，本适配版需要同样的处理。
 - 上游可能发布修复版本；在假定本适配版仍必要之前，请先查看 [npm](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha)。
 
@@ -291,6 +293,6 @@ console.log(await p.search({ query: 'DeepSeek Harness', maxResults: 3 }))
 
 MIT。原始插件 © 2026 **博查（Bocha）** —— [`@bocha-ai/dsh-web-search-bocha`](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha)，[open.bocha.cn](https://open.bocha.cn/)。上游 `LICENSE` 原样保留。
 
-dsh 0.2.0-rc.1 兼容性适配 © 2026 [Ellery1999](https://github.com/Ellery1999)。
+dsh 0.2.x 兼容性适配 © 2026 [Ellery1999](https://github.com/Ellery1999)。
 
 本适配版与博查、DeepSeek 均无隶属或背书关系。
