@@ -6,7 +6,7 @@ English | [中文](README.zh.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![dsh](https://img.shields.io/badge/dsh-%5E0.2.0--rc.1-informational)
 
-A [Bocha Web Search](https://open.bocha.cn/) backend for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — gives the `web_search` tool a working, China-friendly search provider so your agent can actually search the web on **dsh 0.2.0-rc.1 and later** (verified through **0.2.1-rc.1**).
+A [Bocha Web Search](https://open.bocha.cn/) backend for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — gives the `web_search` tool a working, China-friendly search provider so your agent can actually search the web on **dsh 0.2.0-rc.1 and later** (verified through **0.2.1-rc.2**).
 
 > **This is a compatibility fork of the official Bocha plugin.**
 > Built on [`@bocha-ai/dsh-web-search-bocha`](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha) 0.1.0, published by Bocha ([open.bocha.cn](https://open.bocha.cn/)). The upstream package cannot load on current dsh, so this fork removes exactly the one incompatible dependency and leaves everything else untouched. See [Why this fork exists](#why-this-fork-exists).
@@ -34,7 +34,7 @@ This plugin replaces that backend with Bocha. You get domestic, compliant search
 
 | Requirement | Version |
 |---|---|
-| DeepSeek Harness | **`^0.2.0-rc.1`** (verified on 0.2.0-rc.1 and 0.2.1-rc.1) |
+| DeepSeek Harness | **`^0.2.0-rc.1`** (verified on 0.2.0-rc.1, 0.2.1-rc.1 and 0.2.1-rc.2) |
 | Node.js | `^22.19.0` or `>=24.0.0` |
 | Bocha API key | from [open.bocha.cn](https://open.bocha.cn/) |
 
@@ -196,9 +196,11 @@ Get-Item "$env:USERPROFILE\.dsh\profiles\<profile>\node_modules\@lyw\dsh-web-sea
 
 ### Trap 2 — the Web UI has no config page for this plugin
 
-The official Bocha plugin registered a settings page through `dsh-settings`. That API no longer exists on dsh 0.2.0-rc.1, and configuration pages are now produced by client-side slot registration. This fork ships no client half, so there is **no in-GUI configuration page**, and the plugin appears in **Settings → Plugins** with only an enable toggle.
+The official Bocha plugin registered a settings page through `dsh-settings`. That API no longer exists on dsh 0.2.0-rc.1, and configuration pages are now produced by client-side slot registration. This fork ships no client half, so there is **no in-GUI configuration page for this plugin**, and the plugin appears in **Settings → Plugins** with only an enable toggle.
 
 Configure it through the Profile patch ([step 3](#3-point-search-at-bocha-and-add-the-row)) and restart. That is the same surface the official plugin's own docs recommended for third-party search settings.
+
+> **dsh 0.2.1-rc.2 adds a different card.** Its **Settings → Plugins → Web search** card configures the *built-in* DeepSeek search provider (Messages search, the new Web Search API, endpoint and key) — not this plugin. That card's **"Use the new Web Search API"** switch writes `web.searchProvider`/`web.fetchProvider`, so toggling and saving it overrides the Bocha selection. See [Compatibility notes](#compatibility-notes).
 
 ## Configuration
 
@@ -252,7 +254,7 @@ import { installSettingsSection, settingsNamespace } from "@deepseek-ai/dsh-sett
 | `dsh-settings` | `installSettingsSection` / `settingsNamespace` |
 |---|---|
 | 0.1.0-rc.2 … 0.1.1-rc.2 | present |
-| **0.1.2-rc.1 and later (incl. 0.1.5.x, 0.1.7-rc.2, 0.2.0-rc.1, 0.2.1-rc.1)** | **removed** |
+| **0.1.2-rc.1 and later (incl. 0.1.5.x, 0.1.7-rc.2, 0.2.0-rc.1, 0.2.1-rc.1, 0.2.1-rc.2)** | **removed** |
 
 ESM resolves named imports during module linking, so a missing export is a hard `SyntaxError` at load — not something a try/catch can absorb. The plugin row fails with `failed to import` and never registers its provider. The declared peer range `^0.1.0-rc.5` does not prevent this, because it permits anything below `0.2.0`.
 
@@ -283,14 +285,42 @@ console.log(await p.search({ query: 'DeepSeek Harness', maxResults: 3 }))
 
 If you installed via Option A or B with a copied directory, re-copy after editing so the Profile sees the change, then restart dsh.
 
+Compatibility tests (no dependencies beyond Node):
+
+```sh
+node tests/compat.mjs   # offline: the engines gate math for this manifest
+node tests/load.mjs     # real-machine smoke; SKIP without a dsh runtime, PASS with one
+```
+
 ## Compatibility notes
 
-- Tested against **dsh 0.2.0-rc.1 and 0.2.1-rc.1**.
-- dsh 0.2.0-rc.1 adds a plugin compatibility gate: `dsh-app-boot` validates every `@deepseek-ai/dsh*` entry in a plugin's `peerDependencies` with `semver.satisfies(runtime, range, { includePrerelease: true })` and **skips the whole bundle** when one fails, reporting `is incompatible with dsh …`. This release's peer ranges are `^0.2.0-rc.1`.
-- **dsh 0.2.1-rc.1 extends that gate to `engines.dsh`**: once the manifest declares `engines.dsh`, that range is checked **first and alone** (peers are then ignored), with the same `semver.satisfies(..., { includePrerelease: true })` rule. Earlier releases (0.2.0.x) ignored `engines` entirely, which is why this fork's old exact pin `engines.dsh: "0.2.0-rc.1"` loaded fine there but **fails the 0.2.1-rc.1 gate at load time**. Version `0.2.1-rc.1.1` widens it to `^0.2.0-rc.1`. No plugin code changed between `0.2.0-rc.1.1` and `0.2.1-rc.1.1` — every seam this plugin touches (`@deepseek-ai/dsh-web`, `dsh-credentials`, `dsh-launch-environment`, the Loader entry config, and the vendored cordis loader) is source-identical between 0.2.0-rc.2 and 0.2.1-rc.1.
+- Tested against **dsh 0.2.0-rc.1, 0.2.1-rc.1 and 0.2.1-rc.2**; the newest result is from the installed 0.2.1-rc.2 Windows desktop runtime.
+- dsh 0.2.0-rc.1 adds a plugin compatibility gate: `dsh-app-boot` validates the plugin's dsh requirements with `semver.satisfies(runtime, range, { includePrerelease: true })` and **skips the whole bundle** when one fails, reporting `is incompatible with dsh …`.
+- **dsh 0.2.1-rc.1 extends that gate to `engines.dsh`**: once the manifest declares `engines.dsh`, that range is checked **first and alone** (peers are then ignored). **0.2.1-rc.2 leaves this rule unchanged.** This release declares `engines.dsh: "^0.2.0-rc.1"`, which satisfies `0.2.1-rc.2` under `includePrerelease`; `tests/compat.mjs` pins that reasoning.
+- **The old exact pin reproduces real breakage on 0.2.1-rc.2.** Version `0.2.0-rc.1.1` declared `engines.dsh: "0.2.0-rc.1"`. On rc2, installing that tarball is rejected up front by the plugin preflight (`dsh: installation rejected: … is incompatible with dsh 0.2.1-rc.2 …`), and a profile that already had it installed before the upgrade **skips the whole bundle** at load: `dsh: skipping profile bundle "@lyw/dsh-web-search-bocha": … is incompatible with dsh 0.2.1-rc.2 …`. Its patch never lands, so `web.searchProvider` stays `deepseek-official` and Bocha is not used. `0.2.1-rc.1.1` fixed the range; `0.2.1-rc.2.1` re-verifies the fix on rc2.
+- **What 0.2.1-rc.2 changed around the web seam** (checked by diffing `dsh-v0.2.1-rc.1..dsh-v0.2.1-rc.2` and by a real boot):
+  - `WebRuntimeConfig.searchProvider` / `fetchProvider` became schemastery `.volatile()` fields (`Volatile<string | undefined>`), and `web.search()` / `web.fetch()` read `.get()` per call. **Static patch values are unaffected**: schemastery validates the ordinary string first and wraps the result in a stable reference (`createVolatile`), whose `.get()` returns that string. This bundle's `searchProvider: bocha` still resolves and wins (verified with `--dump-config` and the boot probe).
+  - The base bundle adds `web-deepseek-api` (`@deepseek-ai/dsh-web-deepseek-api`), which registers the `deepseek-search-api` / `deepseek-fetch-api` providers. The base `web` row still defaults to `searchProvider: deepseek-official` / `fetchProvider: http`, and this bundle's patch still overrides the search selection.
+  - The **Web search settings card was rewritten** in 0.2.1-rc.2. It appears under **Settings → Plugins → Web search**, edits three settings namespaces (`web`, `web-search-deepseek`, `web-deepseek-api`), and shows a **"Use the new Web Search API"** switch. The `web` namespace — `searchProvider` / `fetchProvider` — is written **only by that switch**: `setSearchApi()` stages both fields and `save()` persists them, while editing the endpoint, `count` or the API key and saving writes no provider selection. Switch on stages `deepseek-search-api` + `deepseek-fetch-api`; switch off stages `deepseek-official` + `http` whenever those differ from the composed value. A Bocha deployment composes `bocha` / `http`, so **flipping the switch either way and saving stores a different `searchProvider` in the profile's user layer** (`cordis.patch.yml`) — `deepseek-search-api` when on, `deepseek-official` when off — and Bocha stops being selected. The card has no Bocha position. **Recovery:** re-pin `web.searchProvider: bocha` in the profile's `cordis.patch.yml` ([step 3](#3-point-search-at-bocha-and-add-the-row)) and restart, or discard the staged card before saving. Do not confuse this card with the plugin's own configuration (it has none).
+- **No plugin code changed for rc2, and none was needed.** Every seam this plugin uses is source-identical between `dsh-v0.2.1-rc.1` and `dsh-v0.2.1-rc.2`: the `WebSearchProvider` interface and the `registerSearchProvider` / `registerFetchProvider` signatures, the `WebError` export, `credentialRef` (`dsh-credentials`), `launchEnvironmentOf` (`dsh-launch-environment`), the Loader entry config, and vendored Cordis. Those packages differ only in their own `version` fields. (`WebRuntime`'s constructor now takes a required config object, but that is host-internal: a provider never constructs the service.)
 - Without the widened range you can also grant a per-version exemption with `dsh plugin --profile <name> allow-version "<pkg>@<ver>" --dsh-version <runtime> --accept-risk`.
 - dsh is in Developer Preview and has already broken this plugin's API surface once. If a future release renames the web seam or the source type, this fork will need the same treatment again.
 - The upstream package may publish a fixed version; check [npm](https://www.npmjs.com/package/@bocha-ai/dsh-web-search-bocha) before assuming this fork is still needed.
+
+## Real-machine verification (DSH 0.2.1-rc.2)
+
+Verified on Windows against the installed **0.2.1-rc.2** desktop runtime (`DeepSeek Harness.exe` with the `app.asar` runtime), in an isolated `DSH_HOME` and a throwaway `compat` profile — the user's own profiles were not touched:
+
+| Check | How | Result |
+|---|---|---|
+| Gate math, offline | `node tests/compat.mjs` | all checks pass; `^0.2.0-rc.1` covers `0.2.1-rc.2` |
+| Packed tarball installs | `dsh plugin --profile compat add …0.2.1-rc.2.1.tgz` | accepted by the rc2 install preflight |
+| Bundle patch composes | `dsh --profile compat --dump-config` | `- id: web-search-bocha` present, `web` row carries `searchProvider: bocha`, no `is incompatible` |
+| Provider really registers | boot + probe plugin (`tests/load.mjs`) | a rival `bocha` registration is rejected with `WEB_DUPLICATE_PROVIDER` |
+| Bocha is really selected | same probe (`ctx.web.search()` with no key) | `WEB_PROVIDER_CREDENTIAL_MISSING` with Bocha's own message (`Bocha search has no API key for "BOCHA_API_KEY"`), not a DeepSeek error |
+| Old `0.2.0-rc.1.1` on rc2 | isolated profile, old tarball | install rejected; a pre-existing install logs `skipping profile bundle … is incompatible with dsh 0.2.1-rc.2` and never applies `searchProvider: bocha` |
+
+`node tests/load.mjs` performs the whole sequence above (17 checks) and prints `SKIP` with exit code 0 when no DSH runtime is available, so it is not a CI requirement. The probe is inserted through `--patch`, registers a rival `bocha` provider to prove the plugin's own registration exists, and calls `ctx.web.search()` without `BOCHA_API_KEY` to prove which provider the seam selected.
 
 ## Credits and license
 
