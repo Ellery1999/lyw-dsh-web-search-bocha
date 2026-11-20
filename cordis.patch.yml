@@ -1,8 +1,14 @@
-# Select the Bocha provider in the base web runtime. A later profile or command-line
-# patch can replace this complete config value.
+# Select the Bocha provider in the base web runtime, and RESTATE the base fetch
+# selection. A patch replaces the targeted row's whole `config` rather than
+# merging into it (see dsh-base's own patch header), so a row that sets only
+# `searchProvider` silently drops the base's `fetchProvider: http`. On dsh
+# 0.2.2+ that leaves two usable fetch providers (http and deepseek-fetch-api)
+# and every web_fetch fails with WEB_PROVIDER_AMBIGUOUS. A later profile or
+# command-line patch can replace this complete config value.
 - id: web
   config:
     searchProvider: bocha
+    fetchProvider: http
 
 # Mount the provider beside the base bundle's existing providers. Removing this
 # bundle removes the row and restores the preceding web selection.

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write dsh-web-search-bocha/README.md
-README.md: 121093109a6a63419d2c2267be447717be3bec03
-README.zh.md: ad3cbaafd08d1b2e54587284afe2335617632f6f
+README.md: 7a7b8a2a6fe5b78c1b8b31360033a8a546ad8c21
+README.zh.md: a887c5610f3c4c9710eb3103be4a1d74c56b779e

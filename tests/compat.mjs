@@ -18,7 +18,7 @@
 import { readFileSync } from 'node:fs'
 
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
-const runtime = process.argv[2] ?? '0.2.1-rc.2'
+const runtime = process.argv[2] ?? '0.2.2-rc.5'
 
 // 本机不带 semver 依赖，用最小实现覆盖本包会出现的范围形态（^x.y.z-prerelease / 精确版本）。
 function satisfies(version, range) {
@@ -71,10 +71,22 @@ if (gateUsesEngines) {
 }
 
 console.log('\n[范围覆盖新旧运行时]')
-for (const candidate of [...new Set(['0.2.0-rc.1', '0.2.0-rc.2', '0.2.1-rc.1', '0.2.1-rc.2', runtime])]) {
+for (const candidate of [...new Set(['0.2.0-rc.1', '0.2.0-rc.2', '0.2.1-rc.1', '0.2.1-rc.2', '0.2.2-rc.5', runtime])]) {
   const ok = satisfies(candidate, enginesDsh)
   check(`engines.dsh ${enginesDsh} 覆盖 ${candidate}`, ok === true, String(ok))
 }
+
+// 回归防护：bundle patch 的 `web` 行必须把 config 写全。
+// dsh 的 patch 是整段替换而非合并，只写 searchProvider 会抹掉 base 的
+// fetchProvider: http；一旦运行时有第二个可用 fetch provider（如 deepseek-fetch-api），
+// 所有 web_fetch 都会以 WEB_PROVIDER_AMBIGUOUS 失败。详见 README 的「陷阱 3」。
+console.log('\n[bundle patch 完整性]')
+const patchText = readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
+const webRow = patchText.split(/\r?\n(?=- )/).find((block) => /^-\s*id:\s*web\s*$/m.test(block)) ?? ''
+check('bundle patch 存在 `- id: web` 行', webRow !== '')
+check('该行设置了 searchProvider: bocha', /^\s*searchProvider:\s*bocha\s*$/m.test(webRow), webRow.trim())
+check('该行同时重写 fetchProvider: http（整段替换会抹掉 base 的值）',
+  /^\s*fetchProvider:\s*http\s*$/m.test(webRow), webRow.trim())
 
 console.log(`\n===== ${failed === 0 ? '全部通过' : `${failed} 项未通过`} =====`)
 process.exit(failed === 0 ? 0 : 1)
